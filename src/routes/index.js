@@ -34,6 +34,33 @@ Model.then(db => {
             }
         })
     })
+
+    router.get('/users', (req, res) => {
+        const rawUrl = req.protocol + '://' + req.get('host') + req.originalUrl
+        let parsedUrl = url.parse(rawUrl);
+        let parsedQs = querystring.parse(parsedUrl.query);
+
+        Models.User.find(parsedQs, (err, result) => {
+            if (err) {
+                res.status(501).send({ error: err })
+            } else {
+                res.status(!result ? 400 : 200).send(result)
+            }
+        })
+    })
+
+    router.get('/user/:email', (req, res) => {
+        const email = req.params.email
+
+        Models.User.findOne({ _id: email }, (err, result) => {
+            if (err) {
+                res.status(501).send({ error: err })
+            } else {
+                res.status(!result ? 400 : 200).send(result)
+            }
+        })
+
+    })
 })
 
 
