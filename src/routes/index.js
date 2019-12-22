@@ -11,7 +11,6 @@ Model.then(db => {
 
     router.get('/contact/:nodeid', (req, res) => {
         const nodeid = req.params.nodeid
-
         Models.Contact.findOne({ _id: nodeid }, (err, result) => {
             if (err) {
                 res.status(501).send({ error: err })
@@ -27,6 +26,20 @@ Model.then(db => {
         let parsedQs = querystring.parse(parsedUrl.query);
 
         Models.Contact.find(parsedQs, (err, result) => {
+            if (err) {
+                res.status(501).send({ error: err })
+            } else {
+                res.status(!result ? 400 : 200).send(result)
+            }
+        })
+    })
+
+    router.get('/contacts/online', (req, res) => {
+        const rawUrl = req.protocol + '://' + req.get('host') + req.originalUrl
+        let parsedUrl = url.parse(rawUrl);
+        let parsedQs = querystring.parse(parsedUrl.query);
+
+        Models.Contact.find({ ...parsedQs, timeoutRate: { $lt: 0.04 } }, (err, result) => {
             if (err) {
                 res.status(501).send({ error: err })
             } else {
