@@ -10,7 +10,7 @@ module.exports = (Database) => {
     .readdirSync(__dirname)
     .filter(file => (file.indexOf('.') !== 0) && (file !== basename) && (file.slice(-3) === '.js'))
     .forEach((file) => {
-      const model = Database.instance.import(path.join(__dirname, file))
+      const model = Database.import(path.join(__dirname, file))
       if (_.has(model.sequelize.models, 'folderancestor')) {
         db.folderancestor = model.sequelize.models.folderancestor
       }

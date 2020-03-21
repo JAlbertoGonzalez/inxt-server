@@ -2,10 +2,18 @@ const express = require('express')
 const querystring = require('querystring')
 const url = require('url')
 const axios = require('axios')
+const async = require('async')
+
+// Services
+const CleanUserService = require('../services/cleaner/userCleanerService')
+const CleanBucketService = require('../services/cleaner/bucketCleanerService')
 
 const router = express.Router()
 
 const Model = require('../services/modelService')
+
+const GithubRoutes = require('./github')
+const CheckerRoutes = require('./servers')
 
 function getUrlParams(req) {
     const rawUrl = req.protocol + '://' + req.get('host') + req.originalUrl
@@ -16,6 +24,9 @@ function getUrlParams(req) {
 
 Model.then(db => {
     const Models = db.models
+
+    GithubRoutes(router)
+    CheckerRoutes(router)
 
     router.get('/contact/:nodeid', (req, res) => {
         const nodeid = req.params.nodeid
@@ -159,16 +170,10 @@ Model.then(db => {
                 }
             },
             {
-                $unwind: {
-                    'path': '$shards.contracts'
-                }
+                $unwind: { 'path': '$shards.contracts' }
             },
-            {
-                $skip: 1
-            },
-            {
-                $limit: 1
-            }
+            { $skip: 1 },
+            { $limit: 1 }
         ], (err, results) => {
             if (err) {
                 res.status(500).send({ error: err })
@@ -177,6 +182,86 @@ Model.then(db => {
             }
         })
     })
+
+    router.get('/mysql/user/:email', (req, res) => {
+        const email = req.params.email
+
+        sql.then(instance => {
+            instance.models.users.findOne({ where: { email: email } }).then(user => {
+                res.status(200).send(user);
+            }).catch(err => {
+                res.status(501).send({ error: err })
+            });
+        }).catch(err => {
+            res.status(501).send({ error: err })
+        });
+
+    })
+
+    router.get('/bridge/clean/users/list', (req, res) => {
+        CleanUserService.FindUsersToBeRemoved(Models).then(results => {
+            res.send(results);
+        }).catch(err => {
+            res.status(501).send(err);
+        });
+    })
+
+    router.get('/bridge/clean/users/remove', (req, res) => {
+        CleanUserService.CleanUsers(Models).then(results => {
+            res.status(200).send({ totalDeleted: results.deletedCount });
+        }).catch(err => {
+            res.status(501).send(err);
+        });
+    })
+
+    router.get('/bridge/clean/buckets/list', (req, res) => {
+        CleanBucketService.FindBucketsToBeRemoved(Models).then(results => {
+            res.send(results);
+        }).catch(err => {
+            res.status(501).send(err);
+        });
+    })
+
+    router.get('/bridge/clean/buckets/remove', (req, res) => {
+        CleanBucketService.CleanBuckets(Models).then(results => {
+            res.status(200).send({ totalDeleted: results.deletedCount });
+        }).catch(err => {
+            res.status(501).send(err);
+        });
+    })
+
+    router.get('/user/:email/cleanfiles', (req, res) => {
+        const email = req.params.email
+
+        const mysql = require('../sequelize/index')
+        const sql = mysql.GetConnectedDatabaseInstance()
+
+        // Get all files present on MySQL
+        async.waterfall([
+            (next) => {
+                sql.then(instance => next(null, instance)).catch(err => next(err))
+            },
+            (instance, next) => {
+                instance.models.users
+                    .findOne({
+                        where: { email: email }, include: [{
+                            model: instance.models.folder
+                        }]
+                    })
+                    .then(user => next(null, user))
+                    .catch(err => next(err));
+            }
+        ], (err, results) => {
+            if (err) {
+                console.log(err)
+                res.status(500).send({ error: err })
+            } else {
+                res.status(200).send({ result: results })
+            }
+        })
+    })
+
+
 
 })
 
