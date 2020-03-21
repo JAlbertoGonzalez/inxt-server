@@ -4,16 +4,13 @@ const url = require('url')
 const axios = require('axios')
 const async = require('async')
 
-// Services
-const CleanUserService = require('../services/cleaner/userCleanerService')
-const CleanBucketService = require('../services/cleaner/bucketCleanerService')
-
 const router = express.Router()
 
 const Model = require('../services/modelService')
 
 const GithubRoutes = require('./github')
 const CheckerRoutes = require('./servers')
+const CleanerRoutes = require('./cleaner')
 
 function getUrlParams(req) {
     const rawUrl = req.protocol + '://' + req.get('host') + req.originalUrl
@@ -27,6 +24,7 @@ Model.then(db => {
 
     GithubRoutes(router)
     CheckerRoutes(router)
+    CleanerRoutes(router, db)
 
     router.get('/contact/:nodeid', (req, res) => {
         const nodeid = req.params.nodeid
@@ -198,38 +196,6 @@ Model.then(db => {
 
     })
 
-    router.get('/bridge/clean/users/list', (req, res) => {
-        CleanUserService.FindUsersToBeRemoved(Models).then(results => {
-            res.send(results);
-        }).catch(err => {
-            res.status(501).send(err);
-        });
-    })
-
-    router.get('/bridge/clean/users/remove', (req, res) => {
-        CleanUserService.CleanUsers(Models).then(results => {
-            res.status(200).send({ totalDeleted: results.deletedCount });
-        }).catch(err => {
-            res.status(501).send(err);
-        });
-    })
-
-    router.get('/bridge/clean/buckets/list', (req, res) => {
-        CleanBucketService.FindBucketsToBeRemoved(Models).then(results => {
-            res.send(results);
-        }).catch(err => {
-            res.status(501).send(err);
-        });
-    })
-
-    router.get('/bridge/clean/buckets/remove', (req, res) => {
-        CleanBucketService.CleanBuckets(Models).then(results => {
-            res.status(200).send({ totalDeleted: results.deletedCount });
-        }).catch(err => {
-            res.status(501).send(err);
-        });
-    })
-
     router.get('/user/:email/cleanfiles', (req, res) => {
         const email = req.params.email
 
@@ -243,11 +209,7 @@ Model.then(db => {
             },
             (instance, next) => {
                 instance.models.users
-                    .findOne({
-                        where: { email: email }, include: [{
-                            model: instance.models.folder
-                        }]
-                    })
+                    .findOne({ where: { email: email }, include: [{ model: instance.models.folder }] })
                     .then(user => next(null, user))
                     .catch(err => next(err));
             }
