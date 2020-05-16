@@ -223,6 +223,62 @@ Model.then(db => {
         })
     })
 
+    router.get('/payments/list', (req, res) => {
+        const currentDate = new Date();
+        const targetDate = new Date(currentDate.setDate(currentDate.getDate() - 2));
+
+        const query = [
+            {
+                '$unwind': {
+                    'path': '$contracts'
+                }
+            }, {
+                '$project': {
+                    'farmer_id': '$contracts.contract.farmer_id',
+                    'renter_id': '$contracts.contract.renter_id',
+                    'payment_destination': '$contracts.contract.payment_destination',
+                    'data_size': '$contracts.contract.data_size'
+                }
+            }, {
+                '$lookup': {
+                    'from': 'contacts',
+                    'localField': 'farmer_id',
+                    'foreignField': '_id',
+                    'as': 'contact'
+                }
+            }, {
+                '$match': {
+                    $and: [
+                        {
+                            '$or': [
+                                { 'contact.timeoutRate': { $lt: 0.4 } },
+                                { 'contact.timeoutRate': { $exists: false } }
+                            ]
+                        },
+                        { 'contact.lastSeen': { $gt: targetDate } }
+
+                    ]
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$payment_destination',
+                    'totalSize': {
+                        '$sum': '$data_size'
+                    }
+                }
+            }
+        ];
+
+        Models.Shard.aggregate(query, (err, results) => {
+            if (err) {
+                res.status(500).send({ error: err })
+            } else {
+                res.status(200).send(results)
+            }
+        })
+    })
+
 
 
 })
